@@ -1,0 +1,108 @@
+name: tailnet-route
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tsroute-tailscale
+    hostname: ${TS_HOSTNAME:-tsroute-dev}
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_HOSTNAME=${TS_HOSTNAME:-tsroute-dev}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=${TS_USERSPACE:-true}
+      - TS_EXTRA_ARGS=--advertise-exit-node --advertise-tags=tag:exit --accept-dns=false
+      - TS_ACCEPT_DNS=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tailscale", "status", "--peers=false"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # AdGuard shares the tailscale netns so DNS is reachable on the tailnet IP.
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: tsroute-adguard
+    network_mode: "service:tailscale"
+    depends_on:
+      tailscale:
+        condition: service_started
+    volumes:
+      - adguard-work:/opt/adguardhome/work
+      - adguard-conf:/opt/adguardhome/conf
+    restart: unless-stopped
+
+  adguard-exporter:
+    image: ghcr.io/henrywhitaker3/adguard-exporter:latest
+    container_name: tsroute-adguard-exporter
+    environment:
+      - ADGUARD_SERVERS=http://tailscale:80
+      - ADGUARD_USERNAMES=${ADGUARD_USER:-admin}
+      - ADGUARD_PASSWORDS=${ADGUARD_PASSWORD:-admin}
+      - INTERVAL=30s
+      - LOG_LEVEL=info
+    ports:
+      - "127.0.0.1:9618:9618"
+    depends_on:
+      - adguard
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tsroute-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: tsroute-node-exporter
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+    pid: host
+    ports:
+      - "127.0.0.1:9100:9100"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: tsroute-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
+  adguard-work:
+  adguard-conf:
+  prometheus-data:
+  grafana-data:

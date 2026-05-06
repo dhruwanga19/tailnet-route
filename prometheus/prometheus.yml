@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    deployment: local
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: adguard
+    static_configs:
+      - targets: ["adguard-exporter:9618"]
+
+  # Tailscale client metrics (exposed on the tailscale container's loopback
+  # at :5252 when --webclient or metrics are enabled). On userspace mode this
+  # may be limited; verify with `tailscale debug metrics`.
+  - job_name: tailscale
+    static_configs:
+      - targets: ["tailscale:5252"]
+    metrics_path: /metrics

@@ -1,0 +1,29 @@
+// Apply at: https://login.tailscale.com/admin/acls
+// Replace EMAIL@example.com with your Tailscale login email.
+{
+  "tagOwners": {
+    "tag:exit":   ["autogroup:admin"],
+    "tag:client": ["autogroup:admin"],
+  },
+
+  "acls": [
+    // Allow your devices and the exit node to talk to each other.
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] },
+  ],
+
+  // Auto-approve the exit-node advertisement so you don't click "approve"
+  // in the admin UI on every container restart.
+  "autoApprovers": {
+    "exitNode": ["tag:exit"],
+    "routes": {},
+  },
+
+  "ssh": [
+    {
+      "action": "check",
+      "src":    ["autogroup:member"],
+      "dst":    ["tag:exit"],
+      "users":  ["root", "ubuntu"],
+    },
+  ],
+}
