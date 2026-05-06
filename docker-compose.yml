@@ -12,6 +12,7 @@ services:
       - TS_USERSPACE=${TS_USERSPACE:-true}
       - TS_EXTRA_ARGS=--advertise-exit-node --advertise-tags=tag:exit --accept-dns=false
       - TS_ACCEPT_DNS=false
+      - TS_TAILSCALED_EXTRA_ARGS=--debug=0.0.0.0:5252
     volumes:
       - tailscale-state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
@@ -71,14 +72,18 @@ services:
       - "127.0.0.1:9090:9090"
     restart: unless-stopped
 
+  # On macOS Docker Desktop the host root can't be bind-mounted (no shared
+  # mount propagation), and the "host" would be the Docker VM anyway — not
+  # useful. For the cloud (Linux) deployment, re-enable the volume + pid:host
+  # lines below to get real host metrics.
   node-exporter:
     image: prom/node-exporter:latest
     container_name: tsroute-node-exporter
     command:
-      - --path.rootfs=/host
-    volumes:
-      - /:/host:ro,rslave
-    pid: host
+      - --path.rootfs=/
+    # volumes:
+    #   - /:/host:ro,rslave
+    # pid: host
     ports:
       - "127.0.0.1:9100:9100"
     restart: unless-stopped

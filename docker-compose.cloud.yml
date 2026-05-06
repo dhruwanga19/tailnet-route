@@ -1,0 +1,38 @@
+# Overlay for cloud (Linux) deployment.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.cloud.yml up -d
+#
+# What it changes vs the base file:
+#   - Tailscale: kernel networking mode (real tun device, fast forwarding, auto-MASQUERADE)
+#   - node-exporter: real host metrics via bind mount + host pid namespace
+#   - Grafana / Prometheus: bound to localhost only (access via SSH tunnel or tailnet)
+
+services:
+  tailscale:
+    environment:
+      - TS_USERSPACE=false
+      - TS_HOSTNAME=${TS_HOSTNAME:-tsroute-prod}
+    # /dev/net/tun + NET_ADMIN already set in the base file.
+
+  node-exporter:
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    pid: host
+
+  grafana:
+    ports: !override
+      - "127.0.0.1:3001:3000"
+
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+
+  adguard-exporter:
+    ports: !override
+      - "127.0.0.1:9618:9618"

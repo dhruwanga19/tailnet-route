@@ -13,7 +13,7 @@ bootstrap: ## First-time setup: copy .env.example to .env
 	@echo "Edit .env and set TS_AUTHKEY before running 'make up'"
 	@echo "  Generate at: https://login.tailscale.com/admin/settings/keys"
 
-up: ## Start the stack
+up: ## Start the stack (local / Mac)
 	@test -f .env || (echo "Run 'make bootstrap' first"; exit 1)
 	docker compose up -d
 	@echo ""
@@ -21,8 +21,15 @@ up: ## Start the stack
 	@sleep 5
 	@$(MAKE) -s status
 
+up-cloud: ## Start the stack on a Linux cloud host (Lightsail / Oracle)
+	@test -f .env || (echo "Copy .env.example to .env first"; exit 1)
+	docker compose -f docker-compose.yml -f docker-compose.cloud.yml up -d
+
 down: ## Stop the stack
 	docker compose down
+
+down-cloud: ## Stop the cloud stack
+	docker compose -f docker-compose.yml -f docker-compose.cloud.yml down
 
 restart: ## Restart all services
 	docker compose restart
